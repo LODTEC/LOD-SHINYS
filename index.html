@@ -279,7 +279,7 @@ const VENDAS_COLLECTION = "vendas";
 
 function whatsappParaEmail(whatsapp) {
   const digits = (whatsapp || "").replace(/\D/g, "");
-  return `w${digits}@lodtec.cliente`;
+  return `cliente${digits}@lodtecloja.com`;
 }
 
 async function fbCadastrarCliente(nome, whatsapp, senha) {
