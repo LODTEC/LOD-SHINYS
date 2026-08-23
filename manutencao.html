@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LODTEC — Em manutenção</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Sans:wght@400;500&display=swap');
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background:
+      radial-gradient(circle at 15% 0%, #2a2247 0%, transparent 45%),
+      radial-gradient(circle at 90% 20%, #1f1a38 0%, transparent 50%),
+      #14111f;
+    color: #f2ede4;
+    font-family: 'IBM Plex Sans', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+  }
+  .spark {
+    font-size: 48px;
+    margin-bottom: 18px;
+    filter: drop-shadow(0 0 10px rgba(244,197,66,.6));
+    animation: pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.12); opacity: .7; }
+  }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(32px, 8vw, 64px);
+    letter-spacing: 0.02em;
+    color: #f4c542;
+    margin: 0 0 14px;
+    text-shadow: 0 0 20px rgba(244,197,66,.35);
+  }
+  p {
+    font-size: clamp(15px, 3.2vw, 19px);
+    color: #a79fc4;
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+  .line {
+    width: 120px;
+    height: 2px;
+    margin: 22px auto;
+    background: linear-gradient(90deg, transparent, #f4c542, transparent);
+  }
+</style>
+</head>
+<body>
+  <div>
+    <div class="spark">✨</div>
+    <h1>EM MANUTENÇÃO</h1>
+    <div class="line"></div>
+    <p>Estamos ajustando algumas coisinhas por aqui.<br />Voltamos em breve — obrigado pela paciência!</p>
+  </div>
+</body>
+</html>
