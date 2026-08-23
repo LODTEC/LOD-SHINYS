@@ -386,6 +386,12 @@ function formatDate(iso) {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 }
+function datasFuturas(datas) {
+  if (!Array.isArray(datas)) return [];
+  const hoje = new Date();
+  const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+  return datas.filter((d) => d >= hojeStr);
+}
 function esc(str) {
   const div = document.createElement("div");
   div.textContent = str;
@@ -426,7 +432,8 @@ function renderCatalog(query) {
     return;
   }
   grid.innerHTML = filtered.map((p) => {
-    const soldOut = !p.datas || p.datas.length === 0;
+    const datasValidas = datasFuturas(p.datas);
+    const soldOut = datasValidas.length === 0;
     return `
       <button class="card ${soldOut ? "card--sold" : ""}" data-id="${p.id}" ${soldOut ? "disabled" : ""}>
         <div class="card-photo">
@@ -445,7 +452,7 @@ function renderCatalog(query) {
             ${p.categoria ? `<span class="cat-tag">${esc(p.categoria)}</span>` : ""}
           </div>
           <div class="card-dates">
-            📅 ${soldOut ? "—" : `${p.datas.length} data${p.datas.length > 1 ? "s" : ""} disponíve${p.datas.length > 1 ? "is" : "l"}`}
+            📅 ${soldOut ? "—" : `${datasValidas.length} data${datasValidas.length > 1 ? "s" : ""} disponíve${datasValidas.length > 1 ? "is" : "l"}`}
           </div>
         </div>
       </button>
@@ -696,7 +703,7 @@ function openCheckout(p) {
         </div>
         <label class="field-label">Escolha a data da troca</label>
         <div class="date-grid">
-          ${p.datas.map((d) => `<button class="date-pill ${state.data === d ? "date-pill--active" : ""}" data-date="${d}">${formatDate(d)}</button>`).join("")}
+          ${datasFuturas(p.datas).map((d) => `<button class="date-pill ${state.data === d ? "date-pill--active" : ""}" data-date="${d}">${formatDate(d)}</button>`).join("")}
         </div>
         <button class="btn btn--primary" id="next-btn" style="margin-top:18px;">Ir para pagamento</button>
       `;
