@@ -56,6 +56,8 @@
     padding: 7px 14px; border-radius: 999px; cursor: pointer;
   }
   .filter-btn--active { background: rgba(244,197,66,.12); border-color: var(--gold); color: var(--gold); }
+  .filter-btn--novos { border-color: var(--teal); color: var(--teal); }
+  .filter-btn--novos.filter-btn--active { background: rgba(94,234,212,.12); border-color: var(--teal); color: var(--teal); }
 
   .grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -76,6 +78,11 @@
   .card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .card-photo-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 26px; }
   .card-spark { position: absolute; top: 10px; right: 10px; color: var(--gold); font-size: 14px; filter: drop-shadow(0 0 4px rgba(244,197,66,.7)); }
+  .new-badge {
+    position: absolute; top: 8px; left: 8px; background: var(--teal); color: #06231f;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
+    padding: 3px 8px; border-radius: 999px; letter-spacing: 0.03em; z-index: 2;
+  }
   .card-soldtag {
     position: absolute; bottom: 0; left: 0; right: 0; background: rgba(20,17,31,.85);
     padding: 6px 10px; font-size: 11.5px; text-align: center; color: var(--muted);
@@ -374,6 +381,12 @@ const CONFIG = {
 };
 
 const CATEGORIAS = ["Selvagem", "Lendário", "Fundo Especial", "Dinamax"];
+const DIAS_NOVO = 3;
+function ehNovo(p) {
+  if (!p.order) return false;
+  const tresDiasMs = DIAS_NOVO * 24 * 60 * 60 * 1000;
+  return Date.now() - p.order <= tresDiasMs;
+}
 
 /* ---------- helpers ---------- */
 const uid = () => Math.random().toString(36).slice(2, 10).toUpperCase();
@@ -422,11 +435,17 @@ let categoriaAtiva = "";
 
 function renderCatalog(query) {
   const grid = document.getElementById("grid");
-  const filtered = POKES.filter((p) => {
+  let filtered = POKES.filter((p) => {
     const matchNome = p.nome.toLowerCase().includes((query || "").toLowerCase());
+    if (categoriaAtiva === "__novos__") {
+      return matchNome && ehNovo(p);
+    }
     const matchCategoria = !categoriaAtiva || p.categoria === categoriaAtiva;
     return matchNome && matchCategoria;
   });
+  if (categoriaAtiva === "__novos__") {
+    filtered = filtered.slice().sort((a, b) => (b.order || 0) - (a.order || 0));
+  }
   if (filtered.length === 0) {
     grid.innerHTML = `<div class="empty"><div style="font-size:30px;">✨</div><p>Nenhum shiny encontrado.</p></div>`;
     return;
@@ -439,6 +458,7 @@ function renderCatalog(query) {
         <div class="card-photo">
           ${p.foto ? `<img src="${p.foto}" alt="${esc(p.nome)}" />` : `<div class="card-photo-empty">✨</div>`}
           <span class="card-spark">✨</span>
+          ${ehNovo(p) ? `<span class="new-badge">NOVO</span>` : ""}
           ${p.foto ? `<span class="zoom-btn" data-zoom="${p.id}">🔍 Ampliar</span>` : ""}
           ${soldOut ? `<div class="card-soldtag">Vendido</div>` : ""}
         </div>
@@ -823,6 +843,7 @@ function renderShell() {
     </header>
     <div class="sparkline"></div>
     <div class="filter-row" id="filter-row">
+      <button class="filter-btn filter-btn--novos ${categoriaAtiva === "__novos__" ? "filter-btn--active" : ""}" data-cat="__novos__">🆕 Novos</button>
       <button class="filter-btn ${categoriaAtiva === "" ? "filter-btn--active" : ""}" data-cat="">Todos</button>
       ${CATEGORIAS.map((c) => `<button class="filter-btn ${categoriaAtiva === c ? "filter-btn--active" : ""}" data-cat="${c}">${c}</button>`).join("")}
     </div>
