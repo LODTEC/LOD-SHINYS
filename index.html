@@ -231,6 +231,28 @@
   .admin-row-info strong { display: block; font-size: 13px; }
   .admin-row-info span { font-size: 11.5px; color: var(--muted); }
   .conta-tag { color: var(--teal); font-family: 'IBM Plex Mono', monospace; }
+
+  .vendas-summary { display: flex; gap: 10px; margin-bottom: 12px; }
+  .summary-box { background: var(--surface2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 13px; flex: 1; }
+  .summary-box .num { font-family: 'Space Grotesk', sans-serif; font-size: 18px; color: var(--gold); line-height: 1.3; }
+  .summary-box .lbl { font-size: 10.5px; color: var(--muted); }
+
+  .venda-row { display: flex; gap: 10px; align-items: center; background: var(--surface2); border: 1px solid var(--line); border-radius: 12px; padding: 9px; margin-bottom: 8px; }
+  .venda-row img, .venda-row .ph {
+    width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex-shrink: 0;
+    background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--gold); font-size: 15px;
+  }
+  .venda-info { flex: 1; min-width: 0; }
+  .venda-info .top { display: flex; justify-content: space-between; gap: 8px; }
+  .venda-info strong { font-size: 12.5px; }
+  .venda-price { font-family: 'IBM Plex Mono', monospace; color: var(--gold); font-size: 12px; white-space: nowrap; }
+  .venda-sub { font-size: 10.5px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+  .tag { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; padding: 2px 6px; border-radius: 999px; margin-right: 4px; display: inline-block; }
+  .tag--conta { color: var(--teal); background: rgba(94,234,212,.1); border: 1px solid rgba(94,234,212,.3); }
+  .tag--reg-sim { color: #7ee787; background: rgba(126,231,135,.1); border: 1px solid rgba(126,231,135,.3); }
+  .tag--reg-nao { color: var(--gold); background: rgba(244,197,66,.1); border: 1px solid rgba(244,197,66,.35); }
+  .tag--manual { color: var(--muted); background: rgba(167,159,196,.08); border: 1px solid var(--line); }
+
   .admin-row button {
     background: var(--surface); border: 1px solid var(--line); color: var(--text);
     border-radius: 7px; padding: 6px 9px; font-size: 11.5px; cursor: pointer; flex-shrink: 0;
@@ -336,7 +358,7 @@ async function fbCarregarVendas() {
 }
 
 // Registra a venda (id determinístico evita duplicar se rodar 2x) e aplica o bloqueio.
-async function registrarVendaEBloquear({ vendaId, pokemon, data, clienteNome, clienteWhatsapp, clienteUid, origem }) {
+async function registrarVendaEBloquear({ vendaId, pokemon, data, clienteNome, clienteWhatsapp, clienteUid, origem, registrado }) {
   const vendaRef = doc(db, VENDAS_COLLECTION, vendaId);
   const jaExiste = await getDoc(vendaRef);
   if (jaExiste.exists()) return; // já processado (evita duplicar)
@@ -344,12 +366,14 @@ async function registrarVendaEBloquear({ vendaId, pokemon, data, clienteNome, cl
   await setDoc(vendaRef, {
     pokemonId: pokemon.id,
     pokemonNome: pokemon.nome,
+    pokemonFoto: pokemon.foto || "",
     preco: pokemon.preco,
     conta: pokemon.conta || "",
     data,
     clienteNome: clienteNome || "",
     clienteWhatsapp: clienteWhatsapp || "",
     clienteUid: clienteUid || "",
+    registrado: typeof registrado === "boolean" ? registrado : null,
     origem: origem || "site",
     criadoEm: Date.now(),
   });
@@ -687,6 +711,7 @@ function openCheckout(p) {
           clienteWhatsapp: clienteAtual.whatsapp,
           clienteUid: clienteAtual.uid,
           origem: "site",
+          registrado: state.registrado,
         });
         await loadCatalog();
         renderCatalog(document.getElementById("search-input")?.value || "");
@@ -1042,7 +1067,23 @@ function openAdminPanel() {
         </div>
 
         <div class="admin-section">
-          <h2>Histórico de vendas</h2>
+          <h2>📊 Histórico de vendas</h2>
+          <div class="search-row">
+            🔍 <input id="adm-vendas-busca" placeholder="Buscar por Pokémon ou comprador..." />
+          </div>
+          <div class="date-range-row" style="margin-bottom:10px;">
+            <label>Conta</label>
+            <select id="adm-vendas-conta">
+              <option value="">Todas</option>
+              ${CONTAS.map((c) => `<option value="${c}">${c}</option>`).join("")}
+            </select>
+            <label>Entrega de</label>
+            <input type="date" id="adm-vendas-de" />
+            <label>até</label>
+            <input type="date" id="adm-vendas-ate" />
+            <button class="btn btn--ghost" id="adm-vendas-limpar" style="padding:6px 12px; font-size:12px;">Limpar filtros</button>
+          </div>
+          <div class="vendas-summary" id="adm-vendas-summary"></div>
           <div class="admin-list" id="adm-vendas-list">
             <p class="muted">Carregando...</p>
           </div>
@@ -1066,30 +1107,90 @@ function openAdminPanel() {
     if (buscaInput) {
       buscaInput.addEventListener("input", () => renderCurrentList(contaFilter?.value, buscaInput.value));
     }
+
+    const vBusca = document.getElementById("adm-vendas-busca");
+    const vConta = document.getElementById("adm-vendas-conta");
+    const vDe = document.getElementById("adm-vendas-de");
+    const vAte = document.getElementById("adm-vendas-ate");
+    const vLimpar = document.getElementById("adm-vendas-limpar");
+    [vBusca, vConta, vDe, vAte].forEach((el) => {
+      el.addEventListener("input", renderVendasList);
+      el.addEventListener("change", renderVendasList);
+    });
+    vLimpar.addEventListener("click", () => {
+      vBusca.value = "";
+      vConta.value = "";
+      vDe.value = "";
+      vAte.value = "";
+      renderVendasList();
+    });
   }
+
+  let vendasCache = [];
 
   async function loadVendasList() {
     const el = document.getElementById("adm-vendas-list");
     if (!el) return;
     try {
-      const vendas = await fbCarregarVendas();
-      vendas.sort((a, b) => (b.criadoEm || 0) - (a.criadoEm || 0));
-      if (vendas.length === 0) {
-        el.innerHTML = `<p class="muted">Nenhuma venda registrada ainda.</p>`;
-        return;
-      }
-      el.innerHTML = vendas.map((v) => `
-        <div class="admin-row">
-          <div class="admin-row-info">
-            <strong>${esc(v.pokemonNome || "")}</strong>
-            <span>${esc(v.clienteNome || "")} · ${esc(v.clienteWhatsapp || "")} · entrega em ${formatDate(v.data)} · ${formatBRL(v.preco || 0)}${v.conta ? ` · <span class="conta-tag">${esc(v.conta)}</span>` : ""}${v.origem === "manual" ? ` · <span class="muted">(manual)</span>` : ""}</span>
-          </div>
-        </div>
-      `).join("");
+      vendasCache = await fbCarregarVendas();
+      vendasCache.sort((a, b) => (b.criadoEm || 0) - (a.criadoEm || 0));
+      renderVendasList();
     } catch (err) {
       console.error(err);
       el.innerHTML = `<p class="muted">Não consegui carregar o histórico agora.</p>`;
     }
+  }
+
+  function renderVendasList() {
+    const el = document.getElementById("adm-vendas-list");
+    const summaryEl = document.getElementById("adm-vendas-summary");
+    if (!el) return;
+
+    const busca = (document.getElementById("adm-vendas-busca")?.value || "").trim().toLowerCase();
+    const conta = document.getElementById("adm-vendas-conta")?.value || "";
+    const de = document.getElementById("adm-vendas-de")?.value || "";
+    const ate = document.getElementById("adm-vendas-ate")?.value || "";
+
+    const filtradas = vendasCache.filter((v) => {
+      const matchBusca = !busca || (v.pokemonNome || "").toLowerCase().includes(busca) || (v.clienteNome || "").toLowerCase().includes(busca);
+      const matchConta = !conta || v.conta === conta;
+      const matchDe = !de || v.data >= de;
+      const matchAte = !ate || v.data <= ate;
+      return matchBusca && matchConta && matchDe && matchAte;
+    });
+
+    const total = filtradas.reduce((soma, v) => soma + (Number(v.preco) || 0), 0);
+    if (summaryEl) {
+      summaryEl.innerHTML = `
+        <div class="summary-box"><div class="num">${filtradas.length}</div><div class="lbl">venda${filtradas.length === 1 ? "" : "s"} no filtro</div></div>
+        <div class="summary-box"><div class="num">${formatBRL(total)}</div><div class="lbl">total arrecadado</div></div>
+      `;
+    }
+
+    if (filtradas.length === 0) {
+      el.innerHTML = `<p class="muted">Nenhuma venda encontrada.</p>`;
+      return;
+    }
+
+    el.innerHTML = filtradas.map((v) => {
+      const regTag = v.registrado === true
+        ? `<span class="tag tag--reg-sim">✅ Já registrado</span>`
+        : v.registrado === false
+          ? `<span class="tag tag--reg-nao">⛔ Não registrado</span>`
+          : "";
+      return `
+        <div class="venda-row">
+          ${v.pokemonFoto ? `<img src="${v.pokemonFoto}" alt="" />` : `<div class="ph">✨</div>`}
+          <div class="venda-info">
+            <div class="top"><strong>${esc(v.pokemonNome || "")}</strong><span class="venda-price">${formatBRL(v.preco || 0)}</span></div>
+            <div class="venda-sub">
+              ${v.conta ? `<span class="tag tag--conta">${esc(v.conta)}</span>` : ""}${regTag}${v.origem === "manual" ? `<span class="tag tag--manual">manual</span>` : ""}<br>
+              ${esc(v.clienteNome || "")} · ${esc(v.clienteWhatsapp || "")} · entrega ${formatDate(v.data)}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
   }
 
   function renderCurrentList(contaFiltro, buscaTexto) {
@@ -1170,6 +1271,11 @@ function openAdminPanel() {
       <input class="input" id="ms-nome" />
       <label class="field-label">WhatsApp do comprador</label>
       <input class="input" id="ms-whats" placeholder="Ex: 62999990000" />
+      <label class="field-label">Já tinha registrado?</label>
+      <div class="toggle-row">
+        <button type="button" class="toggle-btn toggle-btn--active" data-reg="sim" id="ms-reg-sim">✅ Sim</button>
+        <button type="button" class="toggle-btn" data-reg="nao" id="ms-reg-nao">⛔ Não</button>
+      </div>
       <p class="err" id="ms-err" style="display:none;"></p>
       <button class="btn btn--primary" id="ms-save" style="margin-top:14px;">Confirmar e marcar vendido</button>
     `;
@@ -1177,6 +1283,17 @@ function openAdminPanel() {
     document.body.appendChild(overlay);
 
     modal.querySelector("#ms-close").addEventListener("click", () => overlay.remove());
+    let msRegistrado = true;
+    modal.querySelector("#ms-reg-sim").addEventListener("click", () => {
+      msRegistrado = true;
+      modal.querySelector("#ms-reg-sim").classList.add("toggle-btn--active");
+      modal.querySelector("#ms-reg-nao").classList.remove("toggle-btn--active");
+    });
+    modal.querySelector("#ms-reg-nao").addEventListener("click", () => {
+      msRegistrado = false;
+      modal.querySelector("#ms-reg-nao").classList.add("toggle-btn--active");
+      modal.querySelector("#ms-reg-sim").classList.remove("toggle-btn--active");
+    });
     modal.querySelector("#ms-save").addEventListener("click", async () => {
       const data = modal.querySelector("#ms-data").value;
       const nome = modal.querySelector("#ms-nome").value.trim();
@@ -1199,6 +1316,7 @@ function openAdminPanel() {
           clienteWhatsapp: whats,
           clienteUid: "",
           origem: "manual",
+          registrado: msRegistrado,
         });
         await loadCatalog();
         overlay.remove();
