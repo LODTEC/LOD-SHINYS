@@ -288,7 +288,11 @@
     background: var(--surface); border: 1px solid var(--line); color: var(--text);
     border-radius: 7px; padding: 6px 9px; font-size: 11.5px; cursor: pointer; flex-shrink: 0;
   }
-  .admin-row button.danger { color: #f77; border-color: rgba(247,119,119,.4); }
+  .admin-row button.danger, .venda-row button.danger { color: #f77; border-color: rgba(247,119,119,.4); }
+  .venda-row button.danger {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 7px;
+    padding: 6px 9px; font-size: 11px; cursor: pointer; flex-shrink: 0; align-self: center;
+  }
   .date-range-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
   .date-range-row label { font-size: 12px; color: var(--muted); }
   .date-range-row input {
@@ -388,6 +392,10 @@ function ehSexta(dataStr) {
 async function fbCarregarVendas() {
   const snap = await getDocs(collection(db, VENDAS_COLLECTION));
   return snap.docs.map((d) => ({ ...d.data(), id: d.id }));
+}
+
+async function fbExcluirVenda(id) {
+  return deleteDoc(doc(db, VENDAS_COLLECTION, id));
 }
 
 async function fbCarregarReservas() {
@@ -1446,9 +1454,27 @@ function openAdminPanel() {
               ${esc(v.clienteNome || "")} · ${esc(v.clienteWhatsapp || "")} · entrega ${formatDate(v.data)}
             </div>
           </div>
+          <button class="danger" data-del-venda="${v.id}" title="Excluir do histórico">Excluir</button>
         </div>
       `;
     }).join("");
+
+    el.querySelectorAll("[data-del-venda]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Excluir esse registro do histórico? Isso não desfaz a venda nem devolve o Pokémon pra loja, só apaga o registro.")) return;
+        btn.disabled = true;
+        try {
+          await fbExcluirVenda(btn.getAttribute("data-del-venda"));
+          vendasCache = vendasCache.filter((v) => v.id !== btn.getAttribute("data-del-venda"));
+          renderVendasList();
+          showToast("Registro excluído");
+        } catch (err) {
+          console.error(err);
+          alert("Erro ao excluir: " + err.message);
+          btn.disabled = false;
+        }
+      });
+    });
   }
 
   function renderCurrentList(contaFiltro, buscaTexto) {
