@@ -3,30 +3,25 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>LODTEC — Em manutenção</title>
+<title>Esboço — Busca no ADM</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Sans:wght@400;500&display=swap');
-
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+  :root {
+    --bg: #14111f; --surface: #1d1930; --surface2: #241f3a; --line: #332c50;
+    --gold: #f4c542; --teal: #5eead4; --text: #f2ede4; --muted: #a79fc4;
+  }
   * { box-sizing: border-box; }
-  html, body {
-    margin: 0;
-    height: 100%;
-    background:
-      radial-gradient(circle at 15% 0%, #2a2247 0%, transparent 45%),
-      radial-gradient(circle at 90% 20%, #1f1a38 0%, transparent 50%),
-      #14111f;
-    color: #f2ede4;
-    font-family: 'IBM Plex Sans', sans-serif;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 24px;
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif; padding: 24px;
   }
-  .spark {
-    font-size: 48px;
-    margin-bottom: 18px;
-    filter: drop-shadow(0 0 10px rgba(244,197,66,.6));
-    animation: pulse 2.2s ease-in-out infinite;
+  h2 { font-family: 'Space Grotesk', sans-serif; font-size: 15px; margin: 0 0 12px; }
+  .admin-section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+
+  /* ---- NOVO: barra de busca ---- */
+  .search-row {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface2); border: 1px solid var(--line); border-radius: 9px;
+    padding: 9px 12px; margin-bottom: 14px; color: var(--muted);
   }
-  @keyframes pulse {
+  .search-row input {
