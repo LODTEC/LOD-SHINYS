@@ -159,6 +159,28 @@
   }
   .date-pill--active { border-color: var(--gold); color: var(--gold); background: rgba(244,197,66,.1); }
 
+  .mcal-wrap {
+    display: flex; flex-direction: column; gap: 16px; max-height: 420px; overflow-y: auto;
+    padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface2);
+  }
+  .mcal-month-title {
+    font-family: 'Space Grotesk', sans-serif; font-size: 13.5px; color: var(--gold);
+    margin-bottom: 8px; text-align: center; text-transform: capitalize;
+  }
+  .mcal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+  .mcal-weekdays span { text-align: center; font-size: 10px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+  .mcal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .mcal-day {
+    aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px; color: var(--text);
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; cursor: pointer; padding: 0;
+  }
+  .mcal-day:hover { border-color: var(--gold); }
+  .mcal-day--empty { background: none; border: none; cursor: default; }
+  .mcal-day--past { opacity: .35; cursor: not-allowed; }
+  .mcal-day--selected { background: rgba(244,197,66,.18); border-color: var(--gold); color: var(--gold); font-weight: 700; }
+  .mcal-summary { font-size: 12.5px; color: var(--teal); font-family: 'IBM Plex Mono', monospace; padding: 2px 2px 0; }
+
   .btn {
     border-radius: 10px; padding: 11px 18px; font-family: inherit; font-size: 14px;
     font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: none;
@@ -1349,9 +1371,89 @@ function dateRangeArray(from, to) {
   return out;
 }
 
+/* ---------- calendário de seleção de dias (multi-mês) ---------- */
+const MCAL_MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+function mcalPad(n) { return String(n).padStart(2, "0"); }
+
+function mcalBuildMonth(year, month, selectedSet, todayStr) {
+  const firstDow = new Date(year, month, 1).getDay();
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  let cells = "";
+  for (let i = 0; i < firstDow; i++) cells += `<div class="mcal-day mcal-day--empty"></div>`;
+  for (let d = 1; d <= totalDays; d++) {
+    const dateStr = `${year}-${mcalPad(month + 1)}-${mcalPad(d)}`;
+    const classes = ["mcal-day"];
+    if (selectedSet.has(dateStr)) classes.push("mcal-day--selected");
+    if (dateStr < todayStr) classes.push("mcal-day--past");
+    cells += `<button type="button" class="${classes.join(" ")}" data-date="${dateStr}">${d}</button>`;
+  }
+  return `
+    <div class="mcal-month">
+      <div class="mcal-month-title">${MCAL_MESES[month]} ${year}</div>
+      <div class="mcal-weekdays"><span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span></div>
+      <div class="mcal-grid">${cells}</div>
+    </div>
+  `;
+}
+
+// Monta e "religa" o calendário dentro de containerEl, mostrando meses suficientes
+// pra cobrir os dias já selecionados (com mínimo de mcalMinMonths meses).
+function mcalRender(containerEl, summaryEl, selectedSet, mcalMinMonths) {
+  const now = new Date();
+  const baseYear = now.getFullYear();
+  const baseMonth = now.getMonth();
+  const todayStr = `${baseYear}-${mcalPad(baseMonth + 1)}-${mcalPad(now.getDate())}`;
+
+  let monthsToShow = mcalMinMonths;
+  selectedSet.forEach((d) => {
+    const [y, m] = d.split("-").map(Number);
+    const idx = (y - baseYear) * 12 + (m - 1 - baseMonth) + 1;
+    if (idx > monthsToShow) monthsToShow = idx;
+  });
+  monthsToShow = Math.min(monthsToShow, 18); // limite de segurança
+
+  let html = "";
+  let y = baseYear, m = baseMonth;
+  for (let i = 0; i < monthsToShow; i++) {
+    html += mcalBuildMonth(y, m, selectedSet, todayStr);
+    m++;
+    if (m > 11) { m = 0; y++; }
+  }
+  containerEl.innerHTML = html;
+
+  const updateSummary = () => {
+    if (!summaryEl) return;
+    summaryEl.textContent = selectedSet.size === 0
+      ? "Nenhum dia selecionado"
+      : `📌 ${selectedSet.size} dia(s) selecionado(s)`;
+  };
+  updateSummary();
+
+  containerEl.querySelectorAll(".mcal-day[data-date]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const d = btn.getAttribute("data-date");
+      if (selectedSet.has(d)) {
+        selectedSet.delete(d);
+        btn.classList.remove("mcal-day--selected");
+      } else {
+        selectedSet.add(d);
+        btn.classList.add("mcal-day--selected");
+      }
+      updateSummary();
+      // se marcou um dia no último mês visível, redesenha pra abrir mais um mês
+      const lastMonthEl = containerEl.querySelector(".mcal-month:last-child");
+      if (lastMonthEl && lastMonthEl.contains(btn)) {
+        mcalRender(containerEl, summaryEl, selectedSet, mcalMinMonths);
+      }
+    });
+  });
+}
+
 /* ---------- painel admin ---------- */
 function openAdminPanel() {
   let pending = []; // itens processados aguardando salvar
+  let admSelectedDates = new Set(); // dias marcados no calendário de "adicionar novos"
   const appEl = document.getElementById("app");
 
   function renderAdmin() {
@@ -1365,10 +1467,6 @@ function openAdminPanel() {
         <div class="admin-section">
           <h2>Adicionar novos Pokémons</h2>
           <div class="date-range-row">
-            <label>De</label>
-            <input type="date" id="adm-date-from" />
-            <label>até</label>
-            <input type="date" id="adm-date-to" />
             <label>Conta</label>
             <select id="adm-conta-default">
               ${CONTAS.map((c) => `<option value="${c}">${c}</option>`).join("")}
@@ -1378,6 +1476,9 @@ function openAdminPanel() {
               ${CATEGORIAS.map((c) => `<option value="${c}">${c}</option>`).join("")}
             </select>
           </div>
+          <label class="field-label">Dias disponíveis</label>
+          <div class="mcal-wrap" id="adm-calendar"></div>
+          <div class="mcal-summary" id="adm-calendar-summary"></div>
           <label class="file-drop" id="adm-file-drop">
             📤 Toque aqui e escolha as fotos (pode selecionar várias de uma vez)
             <input type="file" id="adm-file-input" accept="image/*" multiple hidden />
@@ -1431,6 +1532,7 @@ function openAdminPanel() {
     });
 
 
+    mcalRender(document.getElementById("adm-calendar"), document.getElementById("adm-calendar-summary"), admSelectedDates, 6);
     renderCurrentList();
     wireUpload();
     loadVendasList();
@@ -1690,9 +1792,7 @@ function openAdminPanel() {
     overlay.className = "overlay";
     overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
 
-    const datas = p.datas || [];
-    const fromVal = datas.length ? datas[0] : "";
-    const toVal = datas.length ? datas[datas.length - 1] : "";
+    const editSelectedDates = new Set(p.datas || []);
     let novaFoto = null; // { thumb, full } se trocar a foto
 
     const modal = document.createElement("div");
@@ -1724,18 +1824,18 @@ function openAdminPanel() {
       <select class="input" id="edit-categoria">
         ${CATEGORIAS.map((c) => `<option value="${c}" ${p.categoria === c ? "selected" : ""}>${c}</option>`).join("")}
       </select>
-      <label class="field-label">Datas disponíveis (de / até)</label>
-      <div class="date-range-row">
-        <input type="date" id="edit-date-from" value="${fromVal}" />
-        <input type="date" id="edit-date-to" value="${toVal}" />
-      </div>
-      <p class="muted" style="margin-top:6px;">Deixe as duas datas em branco pra marcar como vendido.</p>
+      <label class="field-label">Dias disponíveis</label>
+      <div class="mcal-wrap" id="edit-calendar"></div>
+      <div class="mcal-summary" id="edit-calendar-summary"></div>
+      <p class="muted" style="margin-top:6px;">Deixe todos os dias desmarcados pra marcar como vendido.</p>
       <button class="btn btn--primary" id="edit-save-btn" style="margin-top:16px;">Salvar alterações</button>
     `;
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
     document.getElementById("edit-close-btn").addEventListener("click", () => overlay.remove());
+
+    mcalRender(document.getElementById("edit-calendar"), document.getElementById("edit-calendar-summary"), editSelectedDates, 6);
 
     const dropEl = document.getElementById("edit-file-drop");
     const inputEl = document.getElementById("edit-file-input");
@@ -1761,10 +1861,8 @@ function openAdminPanel() {
       const sexo = document.getElementById("edit-sexo").value;
       const conta = document.getElementById("edit-conta").value;
       const categoria = document.getElementById("edit-categoria").value;
-      const from = document.getElementById("edit-date-from").value;
-      const to = document.getElementById("edit-date-to").value;
       if (!nome) { alert("Preencha o nome."); return; }
-      const novasDatasBrutas = dateRangeArray(from, to);
+      const novasDatasBrutas = Array.from(editSelectedDates).sort();
 
       const saveBtn = document.getElementById("edit-save-btn");
       saveBtn.disabled = true;
@@ -1860,11 +1958,9 @@ function openAdminPanel() {
     });
 
     document.getElementById("adm-save-all-btn").onclick = async () => {
-      const from = document.getElementById("adm-date-from").value;
-      const to = document.getElementById("adm-date-to").value;
-      const datas = dateRangeArray(from, to);
+      const datas = Array.from(admSelectedDates).sort();
       if (datas.length === 0) {
-        alert("Escolha a data \"de\" e \"até\" antes de salvar.");
+        alert("Marque pelo menos um dia disponível no calendário antes de salvar.");
         return;
       }
       const semNome = pending.some((p) => !p.nome.trim());
@@ -1893,6 +1989,7 @@ function openAdminPanel() {
         }
       }
       pending = [];
+      admSelectedDates = new Set();
       await loadCatalog();
       showToast("Pokémons adicionados!");
       renderAdmin();
